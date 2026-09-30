@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  username      String?   @unique
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  recipes       Recipe[]
+  ratings       Rating[]
+  modifications  Modification[]
+  accounts      Account[]
+  sessions      Session[]
+  sentShares    Share[] @relation("sharedBy")
+  receivedShares Share[] @relation("sharedWith")
+  friendsA      Friendship[] @relation("requester")
+  friendsB      Friendship[] @relation("addressee")
+  collections   Collection[]
+  shoppingItems ShoppingListItem[]
+  cookLogs      CookLog[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Recipe {
+  id              String          @id @default(cuid())
+  ownerId         String
+  owner           User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  coverImageUrl   String?
+  coverImageAlt   String?
+  baseServings    Int             @default(4)
+  prepMinutes     Int?
+  cookMinutes     Int?
+  difficulty      String?         @default("MEDIUM")
+  cuisine         String?
+  tags            String          @default("[]")
+  sourceUrl       String?
+  videoUrl        String?
+  videoStartSec   Int?
+  caloriesPerServing Int?
+  proteinG        Float?
+  carbsG          Float?
+  fatG            Float?
+  visibility      String          @default("PRIVATE")
+  shareSlug       String?         @unique
+  forkedFromId    String?
+  forkedFrom      Recipe?         @relation("RecipeForks", fields: [forkedFromId], references: [id])
+  forks           Recipe[]        @relation("RecipeForks")
+  ingredients     Ingredient[]
+  images          RecipeImage[]
+  steps           Step[]
+  ratings         Rating[]
+  modifications    Modification[]
+  shares          Share[]
+  collections     CollectionRecipe[]
+  cookLogs        CookLog[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Ingredient {
+  id       String  @id @default(cuid())
+  recipeId String
+  recipe   Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  order    Int
+  quantity Float?
+  unit     String?
+  name     String
+  note     String?
+  group    String?
+  scalable Boolean @default(true)
+}
+
+model RecipeImage {
+  id       String @id @default(cuid())
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  url      String
+  caption  String?
+  order    Int    @default(0)
+}
+
+model Step {
+  id           String  @id @default(cuid())
+  recipeId     String
+  recipe       Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  order        Int
+  text         String
+  timerSeconds Int?
+  imageUrl     String?
+}
+
+model Rating {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeId       String
+  recipe         Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  stars          Int
+  review         String?
+  wouldMakeAgain Boolean?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, recipeId])
+}
+
+model Modification {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeId         String
+  recipe           Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  title            String
+  notes            String?
+  ingredientChanges String  @default("[]")
+  servings         Int?
+  isDefault        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  requester   User     @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User     @relation("addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  @@unique([requesterId, addresseeId])
+}
+
+model Share {
+  id           String   @id @default(cuid())
+  recipeId     String
+  recipe       Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  sharedById   String
+  sharedBy     User     @relation("sharedBy", fields: [sharedById], references: [id], onDelete: Cascade)
+  sharedWithId String
+  sharedWith   User     @relation("sharedWith", fields: [sharedWithId], references: [id], onDelete: Cascade)
+  message      String?
+  seenAt       DateTime?
+  createdAt    DateTime @default(now())
+}
+
+model Collection {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name    String
+  emoji   String?
+  recipes CollectionRecipe[]
+}
+
+model CollectionRecipe {
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, recipeId])
+}
+
+model CookLog {
+  id        String   @id @default(cuid())
+  recipeId  String
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  servings  Int
+  photoUrl  String?
+  note      String?
+  cookedAt  DateTime @default(now())
+}
+
+model ShoppingListItem {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  quantity    Float?
+  unit        String?
+  checked     Boolean @default(false)
+  fromRecipeId String?
+  createdAt   DateTime @default(now())
+}
